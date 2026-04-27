@@ -132,6 +132,34 @@
     /* Spinner */
     .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px}
     @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Course Fit */
+    .presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+    .preset-btn{padding:6px 14px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all 0.15s}
+    .preset-btn:hover{color:var(--text);border-color:var(--border2)}
+    .preset-btn.active{background:var(--accent-dim);border-color:rgba(245,158,11,0.4);color:var(--accent)}
+    .course-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    @media(max-width:768px){.course-grid{grid-template-columns:1fr}}
+    .sliders-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .slider-row{margin-bottom:14px}
+    .slider-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:0.8rem}
+    .slider-name{font-weight:600;color:var(--text)}
+    .slider-val{font-weight:700;color:var(--accent);min-width:36px;text-align:right}
+    input[type=range]{width:100%;accent-color:var(--accent);height:4px;cursor:pointer}
+    .course-desc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:16px}
+    .course-desc strong{color:var(--text)}
+    .weight-total{font-size:0.75rem;color:var(--dim);margin-top:8px}
+    .weight-total.ok{color:var(--green)}
+    .weight-total.warn{color:var(--accent)}
+
+    /* Fantasy Sim */
+    .fsim-controls{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+    .fsim-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .dist-bar{display:flex;align-items:center;gap:4px;height:12px}
+    .db-floor{background:var(--red-dim);border:1px solid rgba(239,68,68,0.3);border-radius:2px;height:100%}
+    .db-mid{background:var(--blue-dim);border:1px solid rgba(56,189,248,0.3);border-radius:2px;height:100%}
+    .db-ceil{background:var(--green-dim);border:1px solid rgba(16,185,129,0.3);border-radius:2px;height:100%}
+    .cap-badge{background:var(--accent-dim);color:var(--accent);font-size:0.68rem;font-weight:700;padding:1px 6px;border-radius:5px;border:1px solid rgba(245,158,11,0.3)}
   </style>
 </head>
 <body>
@@ -153,6 +181,8 @@
   <button class="nav-tab" onclick="switchTab('bets', this)">Value Bets</button>
   <button class="nav-tab" onclick="switchTab('matchups', this)">Matchups</button>
   <button class="nav-tab" onclick="switchTab('fantasy', this)">Fantasy Lineup</button>
+  <button class="nav-tab" onclick="switchTab('fsim', this)">Fantasy Simulator</button>
+  <button class="nav-tab" onclick="switchTab('course', this)">Course Fit</button>
 </nav>
 
 <div class="container">
@@ -198,6 +228,79 @@
   <div class="panel" id="panel-matchups">
     <div class="section-title">Matchup Edges</div>
     <div class="card-grid" id="matchups-grid"></div>
+  </div>
+
+  <!-- Fantasy Simulator panel -->
+  <div class="panel" id="panel-fsim">
+    <div class="fsim-controls">
+      <button class="btn btn-primary" id="btn-fsim" onclick="runFantasySim()">Run Simulator (5,000 tournaments)</button>
+      <span style="font-size:0.78rem;color:var(--dim)">Monte Carlo on actual fantasy scoring — birdies, bogeys, bonuses, FedExCup all simulated per round</span>
+    </div>
+    <div id="fsim-body">
+      <div class="empty"><div class="empty-icon">🎲</div>Click Run Simulator to generate fantasy point distributions.</div>
+    </div>
+  </div>
+
+  <!-- Course Fit panel -->
+  <div class="panel" id="panel-course">
+    <div class="section-title">Course Fit Presets</div>
+    <div class="presets" id="presets-row"></div>
+    <div class="course-desc" id="course-desc-box">Select a preset or adjust sliders to tune the model for this week's course conditions.</div>
+
+    <div class="course-grid">
+      <div class="sliders-card">
+        <div class="section-title" style="margin-bottom:16px">Stat Weights</div>
+
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">SG: Approach</span><span class="slider-val" id="v-sg_approach">35</span></div>
+          <input type="range" min="0" max="100" value="35" id="s-sg_approach" oninput="onSlider('sg_approach',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">SG: Total</span><span class="slider-val" id="v-sg_total">30</span></div>
+          <input type="range" min="0" max="100" value="30" id="s-sg_total" oninput="onSlider('sg_total',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">SG: Putting</span><span class="slider-val" id="v-sg_putting">20</span></div>
+          <input type="range" min="0" max="100" value="20" id="s-sg_putting" oninput="onSlider('sg_putting',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">SG: Off the Tee</span><span class="slider-val" id="v-sg_ott">10</span></div>
+          <input type="range" min="0" max="100" value="10" id="s-sg_ott" oninput="onSlider('sg_ott',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">SG: Around Green</span><span class="slider-val" id="v-sg_around">5</span></div>
+          <input type="range" min="0" max="100" value="5" id="s-sg_around" oninput="onSlider('sg_around',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">Driving Distance</span><span class="slider-val" id="v-driving_dist">0</span></div>
+          <input type="range" min="0" max="100" value="0" id="s-driving_dist" oninput="onSlider('driving_dist',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">Fairways (FIR)</span><span class="slider-val" id="v-fairway_pct">0</span></div>
+          <input type="range" min="0" max="100" value="0" id="s-fairway_pct" oninput="onSlider('fairway_pct',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">Greens in Regulation</span><span class="slider-val" id="v-gir_pct">0</span></div>
+          <input type="range" min="0" max="100" value="0" id="s-gir_pct" oninput="onSlider('gir_pct',this.value)">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="slider-name">Scrambling %</span><span class="slider-val" id="v-scrambling">0</span></div>
+          <input type="range" min="0" max="100" value="0" id="s-scrambling" oninput="onSlider('scrambling',this.value)">
+        </div>
+
+        <div class="weight-total" id="weight-total">Total: 100</div>
+        <br>
+        <button class="btn btn-primary" id="btn-apply" onclick="applyWeights()">Apply to Model</button>
+        <button class="btn btn-ghost" style="margin-left:8px" onclick="resetWeights()">Reset</button>
+      </div>
+
+      <div>
+        <div class="section-title">Preview — Top 15 by Custom Score</div>
+        <div class="tbl-wrap" id="course-preview">
+          <div class="empty" style="padding:32px">Apply weights to see updated rankings.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Fantasy panel -->
@@ -435,10 +538,189 @@ async function recordPicks() {
   }
 }
 
-// Init
+// ─── Course Fit ───────────────────────────────────────────────
+let sliderVals = {sg_approach:35,sg_total:30,sg_putting:20,sg_ott:10,sg_around:5,driving_dist:0,fairway_pct:0,gir_pct:0,scrambling:0};
+let presetsData = {};
+
+function onSlider(key, val) {
+  sliderVals[key] = parseInt(val);
+  document.getElementById('v-' + key).textContent = val;
+  updateWeightTotal();
+}
+
+function updateWeightTotal() {
+  const total = Object.values(sliderVals).reduce((a,b) => a+b, 0);
+  const el = document.getElementById('weight-total');
+  el.textContent = 'Total: ' + total;
+  el.className = 'weight-total ' + (total === 100 ? 'ok' : 'warn');
+}
+
+async function loadPresets() {
+  const data = await fetch('/api/presets').then(r => r.json());
+  presetsData = data;
+  const row = document.getElementById('presets-row');
+  row.innerHTML = '';
+  Object.entries(data).forEach(([key, p]) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (key === 'default' ? ' active' : '');
+    btn.textContent = p.label;
+    btn.dataset.key = key;
+    btn.onclick = () => applyPreset(key, btn);
+    row.appendChild(btn);
+  });
+}
+
+function applyPreset(key, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const w = presetsData[key].weights;
+  Object.entries(w).forEach(([k, v]) => {
+    const scaled = Math.round(v * 100);
+    sliderVals[k] = scaled;
+    const s = document.getElementById('s-' + k);
+    const vv = document.getElementById('v-' + k);
+    if (s) s.value = scaled;
+    if (vv) vv.textContent = scaled;
+  });
+  document.getElementById('course-desc-box').innerHTML =
+    '<strong>' + presetsData[key].label + '</strong><br>' + presetsData[key].desc;
+  updateWeightTotal();
+}
+
+function resetWeights() {
+  applyPreset('default', document.querySelector('.preset-btn'));
+}
+
+async function applyWeights() {
+  const total = Object.values(sliderVals).reduce((a,b) => a+b, 0);
+  if (total === 0) { toast('All weights are zero'); return; }
+  const btn = document.getElementById('btn-apply');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Running model…';
+
+  // Normalize to fractions
+  const weights = {};
+  Object.entries(sliderVals).forEach(([k,v]) => weights[k] = v / total);
+
+  try {
+    const res = await fetch('/api/remodel', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({weights})
+    });
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+
+    simData   = data.sim;
+    betsData  = data.edges;
+    fantasyData.lineup = data.lineup;
+
+    renderProbs(simData);
+    renderBets(betsData.value_bets || []);
+    renderMatchups(betsData.matchup_bets || []);
+    renderFantasy(fantasyData);
+    renderCoursePreview(data.sim.slice(0, 15));
+    toast('✓ Model updated with custom weights');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = 'Apply to Model';
+}
+
+function renderCoursePreview(players) {
+  const wrap = document.getElementById('course-preview');
+  if (!players || !players.length) {
+    wrap.innerHTML = '<div class="empty" style="padding:32px">No data</div>';
+    return;
+  }
+  let html = `<table><thead><tr><th>#</th><th>Player</th><th class="r">Score</th><th class="r">Win%</th><th class="r">Top10</th></tr></thead><tbody>`;
+  players.forEach((r, i) => {
+    html += `<tr><td>${rankBadge(i)}</td><td class="name">${r.player_name}</td>
+      <td class="r" style="color:var(--accent)">${r.model_score.toFixed(3)}</td>
+      <td class="r">${pct(r.p_win)}</td>
+      <td class="r">${pct(r.p_top10)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ─── Fantasy Simulator ────────────────────────────────────────
+async function runFantasySim() {
+  const btn = document.getElementById('btn-fsim');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Simulating 5,000 tournaments…';
+  document.getElementById('fsim-body').innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Running Monte Carlo…</div>';
+
+  try {
+    const data = await fetch('/api/fantasy-sim').then(r => r.json());
+    if (data.error) { toast('Error: ' + data.error); return; }
+    renderFantasySim(data);
+    toast('✓ Simulation complete — ' + data.length + ' players');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = 'Run Simulator (5,000 tournaments)';
+}
+
+function renderFantasySim(players) {
+  const wrap = document.getElementById('fsim-body');
+  if (!players.length) { wrap.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  const maxMean = Math.max(...players.map(p => p.sim_mean));
+
+  let html = `
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr>
+      <th>#</th><th>Player</th>
+      <th class="r">Mean</th>
+      <th class="r">Captain 2×</th>
+      <th class="r">Floor (P10)</th>
+      <th class="r" style="color:var(--blue-text)">Median</th>
+      <th class="r" style="color:var(--green-text)">Ceiling (P90)</th>
+      <th class="r">Spread</th>
+      <th class="r">Birdies/Rd</th>
+      <th class="r">Bogeys/Rd</th>
+    </tr></thead>
+    <tbody>`;
+
+  players.forEach((r, i) => {
+    const barW = Math.round((r.sim_mean / maxMean) * 120);
+    const floorW = Math.max(4, Math.round((r.sim_p10 / maxMean) * 80));
+    const midW   = Math.max(4, Math.round(((r.sim_p75 - r.sim_p25) / maxMean) * 80));
+    const ceilW  = Math.max(4, Math.round(((r.sim_p90 - r.sim_p75) / maxMean) * 40));
+    const isCap  = i < 3;
+    html += `<tr>
+      <td>${rankBadge(i)}</td>
+      <td class="name">${r.player_name} ${isCap ? '<span class="cap-badge">CAP</span>' : ''}</td>
+      <td class="r"><span class="bar-win prob-bar" style="width:${barW}px"></span> <strong>${r.sim_mean}</strong></td>
+      <td class="r" style="color:var(--accent)">${r.cap_mean}</td>
+      <td class="r" style="color:var(--red)">${r.sim_p10}</td>
+      <td class="r" style="color:var(--blue)">${r.sim_median}</td>
+      <td class="r" style="color:var(--green)">${r.sim_p90}</td>
+      <td class="r">
+        <div class="dist-bar">
+          <div class="db-floor" style="width:${floorW}px"></div>
+          <div class="db-mid" style="width:${midW}px"></div>
+          <div class="db-ceil" style="width:${ceilW}px"></div>
+        </div>
+      </td>
+      <td class="r">${r.birdie_avg ? r.birdie_avg.toFixed(2) : '—'}</td>
+      <td class="r">${r.bogey_avg  ? r.bogey_avg.toFixed(2)  : '—'}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+// ─── Init ─────────────────────────────────────────────────────
 document.getElementById('date-label').textContent =
   '{{ today }}  ·  FedEx {{ fedex }}pts  ·  Seg {{ segment }}';
 loadAll();
+loadPresets();
 </script>
 </body>
 </html>

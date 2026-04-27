@@ -15,10 +15,10 @@ for _d in ["data/raw", "data/processed", "data/odds_history"]:
     (Path(__file__).parent.parent / _d).mkdir(parents=True, exist_ok=True)
 
 from flask import Flask, render_template, jsonify, request
-from features import build_features
-from simulator import run as sim_run
+from features import build_features, PRESETS, DEFAULT_WEIGHTS
+from simulator import run as sim_run, simulate_tournament
 from betting_model import find_edges
-from fantasy_model import build_lineup, load_usage, record_starts
+from fantasy_model import build_lineup, load_usage, record_starts, simulate_fantasy_tournament
 
 app = Flask(__name__)
 
@@ -96,6 +96,50 @@ def api_fantasy():
     lineup = _cache["lineup"] or {}
     usage  = load_usage()
     return jsonify({"lineup": lineup, "usage": usage})
+
+
+@app.route("/api/presets")
+def api_presets():
+    return jsonify({k: {"label": v["label"], "desc": v["desc"], "weights": v["weights"]}
+                    for k, v in PRESETS.items()})
+
+
+@app.route("/api/remodel", methods=["POST"])
+def api_remodel():
+    """Re-run model with custom stat weights from Course Fit tab."""
+    data    = request.json or {}
+    weights = data.get("weights", DEFAULT_WEIGHTS)
+    try:
+        features = build_features(weights=weights)
+        sim      = simulate_tournament(features.head(100))
+        lineup   = build_lineup(features, fedex_pts=CURRENT_FEDEX, segment=CURRENT_SEGMENT)
+        edges    = find_edges(sim)
+
+        _cache["features"] = features
+        _cache["sim"]      = sim
+        _cache["edges"]    = edges
+        _cache["lineup"]   = lineup
+
+        sim_rows = sim[["player_name", "p_win", "p_top5", "p_top10", "p_top20", "p_cut", "model_score"]].head(60).to_dict("records")
+        return jsonify({"ok": True, "sim": sim_rows, "edges": edges, "lineup": lineup})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/fantasy-sim")
+def api_fantasy_sim():
+    """Run Monte Carlo fantasy point simulator."""
+    _run_model()
+    features = _cache.get("features")
+    if features is None or features.empty:
+        return jsonify([])
+    try:
+        result = simulate_fantasy_tournament(features.head(80), fedex_pts=CURRENT_FEDEX)
+        return jsonify(result[["player_name", "sim_mean", "sim_median", "sim_p10",
+                                "sim_p25", "sim_p75", "sim_p90", "cap_mean", "sim_std",
+                                "birdie_avg", "bogey_avg", "model_rank"]].to_dict("records"))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/record", methods=["POST"])

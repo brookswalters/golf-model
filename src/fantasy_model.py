@@ -206,6 +206,103 @@ def build_lineup(
     }
 
 
+def simulate_fantasy_tournament(
+    features: pd.DataFrame,
+    fedex_pts: int = 500,
+    n_sim: int = 5_000,
+    cut_rank: int = 65,
+    rng_seed: int = 42,
+) -> pd.DataFrame:
+    """
+    Monte Carlo simulation of fantasy points for each player.
+
+    Simulates hole-by-hole scoring per round using Poisson distributions,
+    applies all bonuses (bogey-free, low round of day, FedExCup), and
+    tracks the full distribution: floor (p10), median (p50), ceiling (p90).
+
+    Returns DataFrame with one row per player and distribution columns.
+    """
+    rng = np.random.default_rng(rng_seed)
+    df  = features.dropna(subset=["birdie_avg", "bogey_avg"]).copy().reset_index(drop=True)
+    n   = len(df)
+
+    birdies_arr = df["birdie_avg"].clip(lower=0.1).to_numpy()
+    bogeys_arr  = df["bogey_avg"].clip(lower=0.05).to_numpy()
+    model_score = df["model_score"].to_numpy()
+
+    # Accumulate fantasy points across simulations
+    all_totals = np.zeros((n, n_sim), dtype=np.float32)
+
+    for s in range(n_sim):
+        # Simulate 4 rounds of hole-by-hole scoring
+        # Eagles ~Poisson(0.05), Birdies ~Poisson(birdie_avg), etc.
+        eagles  = rng.poisson(0.05,  size=(n, 4)).astype(np.float32)
+        birdies = rng.poisson(birdies_arr[:, None] / 4 * 4, size=(n, 4)).astype(np.float32)  # per round
+        bogeys  = rng.poisson(bogeys_arr[:, None],  size=(n, 4)).astype(np.float32)
+        doubles = rng.poisson(0.15,  size=(n, 4)).astype(np.float32)
+
+        # Cap total negative holes so we don't exceed 18
+        total_bad = bogeys + doubles + eagles
+        overflow  = np.maximum(0, total_bad + birdies - 18)
+        birdies   = np.maximum(0, birdies - overflow)
+
+        pars = np.maximum(0, 18 - eagles - birdies - bogeys - doubles)
+
+        # Per-round scoring pts
+        round_pts = eagles * 5 + birdies * 2 + pars * 1 + bogeys * (-1) + doubles * (-3)
+
+        # Bogey-free bonus: 3 pts for any round with 0 bogeys and 0 doubles
+        bogey_free = ((bogeys + doubles) == 0).astype(np.float32) * 3
+        round_pts += bogey_free
+
+        # Low round of day bonus: best score in field = +10, 2nd best = +5
+        for r in range(4):
+            col   = round_pts[:, r]
+            order = np.argsort(-col)  # descending
+            col[order[0]] += 10
+            if n > 1:
+                col[order[1]] += 5
+
+        # Cut after round 2 — top `cut_rank` players by skill advance
+        r2_skill = model_score * 2 + rng.normal(0, 1.5, size=(n, 2)).sum(axis=1)
+        cut_line = np.sort(r2_skill)[::-1][min(cut_rank - 1, n - 1)]
+        made_cut = r2_skill >= cut_line
+
+        # Players who miss cut get 0 pts in rounds 3-4
+        round_pts[~made_cut, 2] = 0
+        round_pts[~made_cut, 3] = 0
+
+        tournament_score = round_pts.sum(axis=1)
+
+        # FedExCup bonus: finish position → points → /10
+        finish_order = np.argsort(-tournament_score)
+        fedex_scale  = np.zeros(n, dtype=np.float32)
+        # Award FedEx pts based on finish (approximate distribution)
+        for pos, idx in enumerate(finish_order):
+            if not made_cut[idx]:
+                continue
+            if pos == 0:    fedex_scale[idx] = fedex_pts / 10
+            elif pos < 5:   fedex_scale[idx] = fedex_pts / 10 * 0.6
+            elif pos < 10:  fedex_scale[idx] = fedex_pts / 10 * 0.35
+            elif pos < 20:  fedex_scale[idx] = fedex_pts / 10 * 0.18
+            elif pos < 30:  fedex_scale[idx] = fedex_pts / 10 * 0.08
+
+        all_totals[:, s] = tournament_score + fedex_scale
+
+    # Compute distribution stats per player
+    result = df[["player_name", "model_rank", "model_score", "birdie_avg", "bogey_avg"]].copy()
+    result["sim_mean"]   = np.round(all_totals.mean(axis=1),  1)
+    result["sim_median"] = np.round(np.median(all_totals, axis=1), 1)
+    result["sim_p10"]    = np.round(np.percentile(all_totals, 10, axis=1), 1)
+    result["sim_p25"]    = np.round(np.percentile(all_totals, 25, axis=1), 1)
+    result["sim_p75"]    = np.round(np.percentile(all_totals, 75, axis=1), 1)
+    result["sim_p90"]    = np.round(np.percentile(all_totals, 90, axis=1), 1)
+    result["cap_mean"]   = np.round(all_totals.mean(axis=1) * 2, 1)  # as captain (2x)
+    result["sim_std"]    = np.round(all_totals.std(axis=1),  1)
+
+    return result.sort_values("sim_mean", ascending=False).reset_index(drop=True)
+
+
 if __name__ == "__main__":
     features = build_features()
     if features.empty:
