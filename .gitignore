@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+data/raw/*.parquet
+data/raw/*.json
+data/processed/*.parquet
+data/odds_history/
+.env
+*.pyc
