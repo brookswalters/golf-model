@@ -31,8 +31,8 @@ _cache = {
     "features": None,
 }
 
-CURRENT_TOURNAMENT = "Cadillac Championship"
-CURRENT_FEDEX      = 700
+CURRENT_TOURNAMENT = "PGA Championship"
+CURRENT_FEDEX      = 750
 CURRENT_SEGMENT    = 2
 
 
